@@ -68,7 +68,7 @@ alias getExtension = function(string filepath) {
 };
 
 // apply a transversal function to all files in directory
-auto applyToAllFiles(string directoryPath, string fileArguments, void delegate(string filePath, string fileArguments) transversalFunction)
+auto applyToAllFiles(string directoryPath, string[] fileArguments, void delegate(string filePath, string[] fileArguments) transversalFunction)
 {
 	foreach (f; directoryPath.onlyFiles)
 	{
@@ -85,15 +85,24 @@ auto lineFromFile(string filePath)
 // write one line to file
 auto lineToFile(string line, string filePath)
 {
-	File(filePath).writeln(line);
+	File file;
+	file.open(filePath, `w`);
+	scope(exit)
+	{
+		file.close;
+	}
+	file.writeln(line);
 }
 
 void main(string[] arguments)
 {
-	enum string METAINFO_DIRECTORY = `.redo`;
+	string programName = arguments[0];
+	enum string metaDirectory = `.redo`;
 	
-	alias removeDependencyFile = delegate(string filePath, string fileArguments) {
-		if (lineFromFile(filePath) == fileArguments)
+	// remove dependency file
+	alias removeDependencyFile = delegate(string filePath, string[] fileArguments) {
+		auto content = lineFromFile(filePath);
+		if (content == fileArguments[0])
 		{
 			remove(filePath);
 		}
@@ -101,19 +110,19 @@ void main(string[] arguments)
 	
 	auto cleanChangeSum(string dependency, string target)
 	{
-		auto changeDirectory = format("%s/%s/change/", METAINFO_DIRECTORY, target);
-		applyToAllFiles(changeDirectory, dependency, removeDependencyFile);
+		auto changeDirectory = format(metaDirectory ~ "/%s/change/", target);
+		applyToAllFiles(changeDirectory, [dependency], removeDependencyFile);
 	}
 	
 	auto cleanCreateSum(string dependency, string target)
 	{
-		auto createDirectory = format("%s/%s/create/", METAINFO_DIRECTORY, target);
-		applyToAllFiles(createDirectory, dependency, removeDependencyFile);
+		auto createDirectory = format(metaDirectory ~ "/%s/create/", target);
+		applyToAllFiles(createDirectory, [dependency], removeDependencyFile);
 	}
 	
 	auto cleanAll(string target)
 	{
-		auto targetDirectory = METAINFO_DIRECTORY ~ "/" ~ target;
+		auto targetDirectory = metaDirectory ~ "/" ~ target;
 		if (targetDirectory.exists)
 		{
 			foreach (w; targetDirectory.onlyFiles)
@@ -126,7 +135,7 @@ void main(string[] arguments)
 	auto getChangeSum(string dependency, string target)
 	{
 		string changeSum;
-		auto changeDirectory = format("%s/%s/change/", METAINFO_DIRECTORY, target);
+		auto changeDirectory = format(metaDirectory ~ "/%s/change/", target);
 		
 		foreach (c; changeDirectory.onlyFiles)
 		{
@@ -142,7 +151,7 @@ void main(string[] arguments)
 	auto upToDate(string dependency, string target)
 	{
 		string oldSum;
-		auto changeDirectory = format("%s/%s/change/", METAINFO_DIRECTORY, target);
+		auto changeDirectory = format(metaDirectory ~ "/%s/change/", target);
 		
 		foreach (d; changeDirectory.onlyFiles)
 		{	
@@ -181,14 +190,14 @@ void main(string[] arguments)
 	auto genChangeSum(string dependency, string target)
 	{
 		cleanChangeSum(dependency, target);
-		auto path = format("%s/%s/change/%s", METAINFO_DIRECTORY, target, md5sum(dependency));
+		auto path = format(metaDirectory ~ "/%s/change/%s", target, md5sum(dependency));
 		lineToFile(dependency, path);
 	}
 	
 	auto genCreateSum(string dependency, string target)
 	{
 		cleanCreateSum(dependency, target);
-		auto path = format("%s/%s/create/%s", METAINFO_DIRECTORY, target, md5sum(dependency));
+		auto path = format(metaDirectory ~ "/%s/create/%s", target, md5sum(dependency));
 		lineToFile(dependency, path);
 	}
 	
@@ -213,8 +222,8 @@ void main(string[] arguments)
 		string tmp = target ~ `---redoing`;
 		string doFilePath = doPath(target);
 		
-		auto createDirectory = format(`%s/%s/create/`, METAINFO_DIRECTORY, target);
-		auto changeDirectory = format(`%s/%s/change/`, METAINFO_DIRECTORY, target);
+		auto createDirectory = format(metaDirectory ~ `/%s/create/`, target);
+		auto changeDirectory = format(metaDirectory ~ `/%s/change/`, target);
 		
 		if (!createDirectory.exists)
 		{
@@ -283,32 +292,32 @@ void main(string[] arguments)
 				cleanAll(target);
 				genChangeSum(doFilePath, target);
 				
-				string shellCommand = getShebang(doFilePath);
-				string command;
+				string cmd = getShebang(doFilePath);
+				string rcmd;
 			
-				if (shellCommand == "")
+				if (cmd == "")
 				{
-					command = format(
+					rcmd = format(
 						`PATH=.:$PATH REDO_TARGET="%s" sh -e "%s" 0 "%s" "%s" > "%s"`, target, doFilePath, baseName(target), tmp, tmp
 					);
 				}
 				else
 				{
-					command = format(
-						`PATH=.:$PATH REDO_TARGET="%s" sh -c "%s" "%s" 0 "%s" "%s" > "%s"`, target, shellCommand, doFilePath, baseName(target), tmp, tmp
+					rcmd = format(
+						`PATH=.:$PATH REDO_TARGET="%s" sh -c "%s" "%s" 0 "%s" "%s" > "%s"`, target, cmd, doFilePath, baseName(target), tmp, tmp
 					);
 				}
-				auto executed = executeShell(command);
+				auto rc = executeShell(rcmd);
 				
-				if (executed.status != 0)
+				if (rc.status != 0)
 				{
-					error(format(`Redo script exited with a non-zero exit code: %d`, executed.status));
-					error(executed.output);
+					error(format(`Redo script exited with a non-zero exit code: %d`, rc.status));
+					error(rc.output);
 					remove(tmp);
 				}
 				else
 				{
-					if (!tmp.getSize)
+					if (tmp.getSize == 0)
 					{
 						remove(tmp);
 					}
@@ -321,13 +330,12 @@ void main(string[] arguments)
 		}
 	}
 	
-	string programName = arguments[0];
 	string[] targets = arguments[1..$];
 
 	switch (programName)
 	{
 		case "redo-ifchange":
-			if (!environment.get("REDO_TARGET", ""))
+			if (environment.get("REDO_TARGET", "") == "")
 			{
 				error(`REDO_TARGET not set`);
 				return;
@@ -344,7 +352,7 @@ void main(string[] arguments)
 			}
 			break;
 		case "redo-ifcreate":
-			if (!environment.get("REDO_TARGET", ""))
+			if (environment.get("REDO_TARGET", "") == "")
 			{
 				error(`REDO_TARGET not set`);
 				return;
