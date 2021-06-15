@@ -7,48 +7,20 @@ import std.process;
 import std.stdio;
 import std.string;
 
-enum MESSAGE_TYPE
-{
-	ERROR,
-	INFO,
-	LOG,
-	WARNING
-}
-
-auto notify(string message, MESSAGE_TYPE messageType)
-{
-	string preMessage = message;
-	final switch (messageType) with (MESSAGE_TYPE)
-	{
-		case ERROR:
-			preMessage = format("\u001b[31m\u001b[49m\u001b[1mError:\u001b[0m\u001b[97m\u001b[49m\u001b[1m %s \u001b[0m", message);
-			break;
-		case INFO:
-			preMessage = format("\u001b[32m\u001b[49m\u001b[1mInfo:\u001b[0m\u001b[97m\u001b[49m\u001b[1m %s \u001b[0m", message);
-			break;
-		case LOG:
-			preMessage = format("\u001b[34m\u001b[49m\u001b[1mLog:\u001b[0m\u001b[97m\u001b[49m\u001b[1m %s \u001b[0m", message);
-			break;
-		case WARNING:
-			preMessage = format("\u001b[33m\u001b[49m\u001b[1mWarning:\u001b[0m\u001b[97m\u001b[49m\u001b[1m %s \u001b[0m", message);
-			break;
-	}
-	writefln(preMessage);
-}
-
 alias error = function(string message) {
-	notify(message, MESSAGE_TYPE.ERROR);
+	format("\u001b[31m\u001b[49m\u001b[1mError:\u001b[0m\u001b[97m\u001b[49m\u001b[1m %s \u001b[0m", message).writeln;
 };
 
 alias info = function(string message) {
-	notify(message, MESSAGE_TYPE.INFO);
+	format("\u001b[32m\u001b[49m\u001b[1mInfo:\u001b[0m\u001b[97m\u001b[49m\u001b[1m %s \u001b[0m", message).writeln;
 };
+
 alias log = function(string message) {
-	notify(message, MESSAGE_TYPE.LOG);
+	format("\u001b[34m\u001b[49m\u001b[1mLog:\u001b[0m\u001b[97m\u001b[49m\u001b[1m %s \u001b[0m", message).writeln;
 };
 
 alias warning = function(string message) {
-	notify(message, MESSAGE_TYPE.WARNING);
+	format("\u001b[33m\u001b[49m\u001b[1mWarning:\u001b[0m\u001b[97m\u001b[49m\u001b[1m %s \u001b[0m", message).writeln;
 };
 
 alias onlyFiles = function(string directoryPath) {
@@ -67,57 +39,42 @@ alias getExtension = function(string filepath) {
 		return filepath.extension.replace(".", "");
 };
 
-// apply a transversal function to all files in directory
-auto applyToAllFiles(string directoryPath, string[] fileArguments, void delegate(string filePath, string[] fileArguments) transversalFunction)
-{
-	foreach (f; directoryPath.onlyFiles)
-	{
-		transversalFunction(f, fileArguments);
-	}
-}
-
-// read one line from file and return it
 auto lineFromFile(string filePath)
 {
-	return File(filePath).readln.strip;
+	return File(filePath, `r`).readln.strip;
 }
 
-// write one line to file
 auto lineToFile(string line, string filePath)
 {
-	File file;
-	file.open(filePath, `w`);
-	scope(exit)
-	{
-		file.close;
-	}
-	file.writeln(line);
+	File(filePath, `w`).writeln(line);
 }
 
 void main(string[] arguments)
 {
-	string programName = arguments[0];
 	enum string metaDirectory = `.redo`;
-	
-	// remove dependency file
-	alias removeDependencyFile = delegate(string filePath, string[] fileArguments) {
-		auto content = lineFromFile(filePath);
-		if (content == fileArguments[0])
-		{
-			remove(filePath);
-		}
-	};
-	
+
 	auto cleanChangeSum(string dependency, string target)
 	{
 		auto changeDirectory = format(metaDirectory ~ "/%s/change/", target);
-		applyToAllFiles(changeDirectory, [dependency], removeDependencyFile);
+		foreach (a; changeDirectory.onlyFiles)
+		{
+			if (lineFromFile(a) == dependency)
+			{
+				remove(a);
+			}
+		}
 	}
 	
 	auto cleanCreateSum(string dependency, string target)
 	{
 		auto createDirectory = format(metaDirectory ~ "/%s/create/", target);
-		applyToAllFiles(createDirectory, [dependency], removeDependencyFile);
+		foreach (b; createDirectory.onlyFiles)
+		{
+			if (lineFromFile(b) == dependency)
+			{
+				remove(b);
+			}
+		}
 	}
 	
 	auto cleanAll(string target)
@@ -205,7 +162,7 @@ void main(string[] arguments)
 	{
 		string shebang;
 
-		foreach (line; File(filepath).byLine)
+		foreach (line; File(filepath, `r`).byLine)
 		{
 			if (startsWith(cast(string) line, "#!"))
 			{
@@ -330,6 +287,7 @@ void main(string[] arguments)
 		}
 	}
 	
+	string programName = arguments[0];
 	string[] targets = arguments[1..$];
 
 	switch (programName)
