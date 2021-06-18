@@ -1,10 +1,12 @@
-/+ Traslation of shell version of djb's redo build system by Jeff Pratt (https://github.com/jecxjo/redo/blob/master/redo)
+/+ 
+# Traslation of shell version of djb's redo build system by Jeff Pratt (https://github.com/jecxjo/redo/blob/master/redo)
 #
 # Written by Jeff Parent (original shell version)
 # Translated by Oleg Bakharev
 # Released as Public Domain
 # Version: 0.0.1
 # Date: Fri Jun 18 20:30:00 2021
+#
 +/
 
 import std.algorithm;
