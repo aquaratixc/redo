@@ -90,15 +90,6 @@ the `.redo` directory and run `redo` again.
 
 Try out the example code, `redo example`
 
-## Installation
-
-Easiest way is to just modify install.do and run it with `sh`
-
-    $ /bin/sh ./install.do
-    Password:
-    $ ls /usr/local/bin/redo*
-    /usr/local/bin/redo  /usr/local/bin/redo-ifchange  /usr/local/bin/redo-ifcreate
-
 ## License
 
 As with djb's description, this script is released as Public Domain.
