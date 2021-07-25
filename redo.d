@@ -1,12 +1,10 @@
-/+ 
-# Traslation of shell version of djb's redo build system by Jeff Pratt (https://github.com/jecxjo/redo/blob/master/redo)
+/+ Traslation of shell version of djb's redo build system by Jeff Pratt (https://github.com/jecxjo/redo/blob/master/redo)
 #
 # Written by Jeff Parent (original shell version)
 # Translated by Oleg Bakharev
 # Released as Public Domain
-# Version: 0.0.1
+# Version: 0.0.2
 # Date: Fri Jun 18 20:30:00 2021
-#
 +/
 
 import std.algorithm;
@@ -39,7 +37,7 @@ alias onlyFiles = function(string directoryPath) {
 };
 
 alias md5sum = function(string filename) {
-		return File(filename)
+		return File(filename, `rb`)
 							.byChunk(4096 * 1024)
 							.digest!MD5
 							.toHexString
@@ -275,6 +273,7 @@ void main(string[] arguments)
 						`PATH=.:$PATH REDO_TARGET="%s" sh -c "%s" "%s" 0 "%s" "%s" > "%s"`, target, cmd, doFilePath, baseName(target), tmp, tmp
 					);
 				}
+				info(format(`[build command]: %s`, rcmd));
 				auto rc = executeShell(rcmd);
 				
 				if (rc.status != 0)
@@ -282,16 +281,22 @@ void main(string[] arguments)
 					error(format(`Redo script exited with a non-zero exit code: %d`, rc.status));
 					error(rc.output);
 					remove(tmp);
+					info(format(`[removing temporary file]: %s`, tmp));
 				}
 				else
 				{
-					if (tmp.getSize == 0)
+					if (tmp.exists)
 					{
-						remove(tmp);
-					}
-					else
-					{
-						copy(tmp, target);
+						if (tmp.getSize == 0)
+						{
+							info(format(`[removing]: %s`, tmp));
+							remove(tmp);
+						}
+						else
+						{
+							info(format(`[copying]: from %s to %s`, tmp, target));
+							copy(tmp, target);
+						}
 					}
 				}
 			}
@@ -326,7 +331,6 @@ void main(string[] arguments)
 				error(`REDO_TARGET not set`);
 				return;
 			}
-			
 			foreach (target; targets)
 			{
 				string redoTarget = environment.get("REDO_TARGET", "");
